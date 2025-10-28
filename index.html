@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suri-Aral | AI-Powered Item Analysis Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <!-- Vanta.js for 3D Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .toggle-icon {
+            transition: transform 0.2s ease-in-out;
+        }
+        .glass-container {
+            background-color: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        #vanta-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; /* Place it behind all other content */
+        }
+        .table-cell {
+            padding: 0.5rem;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+            min-width: 60px;
+        }
+        .table-cell-header {
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+        .student-answer-checkbox {
+            width: 1.5rem;
+            height: 1.5rem;
+            cursor: pointer;
+        }
+
+        .interpretation-level-mastered { background-color: #dcfce7; color: #166534; }
+        .interpretation-level-least { background-color: #fef9c3; color: #854d0e; }
+        .interpretation-level-not { background-color: #fee2e2; color: #991b1b; }
+        
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-area, #print-area * {
+                visibility: visible;
+            }
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="vanta-background"></div>
+
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="relative text-center mb-10 p-6 glass-container rounded-xl shadow-sm">
+            <h1 class="text-3xl font-bold text-gray-900">Suri-Aral</h1>
+            <p class="text-md text-gray-600">An AI-Powered Item Analysis Tool</p>
+            <button id="help-btn" title="Help / User Manual" class="absolute top-4 right-4 bg-white/30 p-2 rounded-full hover:bg-white/70 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.79 4 4 0 .888-.28 1.716-.748 2.374a3.988 3.988 0 01-2.252.976c-1.135 0-2.135-.448-2.828-1.172A3.99 3.99 0 015 13c0-1.105.448-2.105 1.172-2.828.724-.724 1.723-1.172 2.828-1.172z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v.01" />
+                </svg>
+            </button>
+        </header>
+
+        <!-- Help Modal -->
+        <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h2 class="text-xl font-bold text-gray-800">User Manual</h2>
+                    <button id="close-help-modal-btn" class="text-gray-500 hover:text-gray-800">&times;</button>
+                </div>
+                <div class="p-6 prose max-w-none">
+                    <h4>Welcome to Suri-Aral! Here's how to get started:</h4>
+                    <ol>
+                        <li><strong>Fill in Examination Details:</strong> In Section 1, enter all the required information about the test, including the number of items and test takers. Click <strong>Generate Data Entry Grid</strong>.</li>
+                        <li><strong>Enter Student Data:</strong> In Section 2, you can either:
+                            <ul>
+                                <li>Manually check the boxes for each student's correct answers. You can also edit student names by clicking on them.</li>
+                                <li>Or, upload a CSV file with student data. The first column should be the student's name, followed by columns for each item (1 for correct, 0 for incorrect).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Upload Test Questions (Optional but Recommended):</strong> In Section 3, upload the test question paper as a PDF. This allows the AI to provide much more specific and relevant analysis.</li>
+                        <li><strong>Generate AI Analysis:</strong> Enter your Gemini API Key (click "How do I get one?" for instructions). Then, click <strong>Generate AI Analysis</strong> to receive a detailed report with insights and recommendations.</li>
+                        <li><strong>Save and Load:</strong> Use the <strong>Save Data</strong> button to download a JSON file of your entire session. You can use the <strong>Load Data</strong> button to restore a previous session.</li>
+                        <li><strong>Print Report:</strong> Click <strong>Print Report</strong> to generate a printer-friendly version of the item analysis table and the AI summary.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <main id="app-container">
+            
+            <!-- Section 1: Setup -->
+            <section id="setup" class="glass-container p-6 rounded-xl shadow-lg mb-8 no-print">
+                <div class="flex justify-between items-center cursor-pointer" data-toggle-section="setup-content">
+                    <h2 class="text-xl font-bold text-gray-700">1. Examination Details</h2>
+                    <span class="toggle-icon text-xl font-bold">▲</span>
+                </div>
+                <div id="setup-content" class="mt-4 border-t pt-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <input type="text" id="district" placeholder="District" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="school" placeholder="School" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="school-year" placeholder="School Year (e.g., 2025-2026)" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="grade-level" placeholder="Grade Level" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="section" placeholder="Section" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="subject" placeholder="Subject" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="exam-title" placeholder="Title of Examination (e.g., 1st Quarter)" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="number" id="num-items" placeholder="Total Number of Items" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <input type="number" id="num-students" placeholder="Number of Test Takers" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <button id="generate-grid-btn" class="mt-6 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-all duration-200 hover:-translate-y-0.5">Generate Data Entry Grid</button>
+                </div>
+            </section>
+
+            <!-- Section 2: Data Entry -->
+            <section id="data-entry-section" class="glass-container p-6 rounded-xl shadow-lg mb-8 hidden no-print">
+                <div class="flex justify-between items-center cursor-pointer" data-toggle-section="data-entry-content">
+                    <h2 class="text-xl font-bold text-gray-700">2. Data Entry</h2>
+                    <span class="toggle-icon text-xl font-bold">▼</span>
+                </div>
+                <div id="data-entry-content" class="mt-4 border-t pt-4 hidden">
+                    <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <label for="csv-file-input" class="block text-sm font-medium text-gray-700 mb-2">Or, Upload a CSV File</label>
+                        <p class="text-xs text-gray-500 mb-2">
+                            The CSV should have a header row. The first column should be the student's name, followed by columns for each item.
+                            Use '1' for a correct answer and '0' for incorrect. The number of data rows and item columns must match the 'Test Takers' and 'Total Items' set above.
+                        </p>
+                        <input type="file" id="csv-file-input" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200">
+                        <button id="upload-csv-btn" class="mt-3 bg-blue-500 text-white font-bold py-1 px-3 rounded-md hover:bg-blue-600 transition-colors text-sm">Process CSV</button>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-4">For each student, check the box for each item they answered correctly. The analysis will update in real-time.</p>
+    
+                    <div class="overflow-x-auto">
+                        <table id="data-entry-grid" class="w-full border-collapse">
+                            <!-- Grid will be generated here -->
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Section 3: Analysis and Results -->
+            <section id="analysis-section" class="hidden">
+                <div class="glass-container p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center cursor-pointer" data-toggle-section="analysis-content">
+                        <h2 class="text-xl font-bold text-gray-700">3. Item Analysis Report</h2>
+                        <span class="toggle-icon text-xl font-bold">▲</span>
+                    </div>
+                    <div id="analysis-content" class="mt-4 border-t pt-4 hidden">
+                        <div id="print-area">
+                            <!-- Report Header -->
+                            <div id="report-header" class="mb-6 text-sm">
+                                <div class="grid grid-cols-2 gap-x-8 gap-y-2">
+                                    <p><strong>District:</strong> <span id="report-district"></span></p>
+                                    <p><strong>School:</strong> <span id="report-school"></span></p>
+                                    <p><strong>Grade Level:</strong> <span id="report-grade-level"></span></p>
+                                    <p><strong>Subject:</strong> <span id="report-subject"></span></p>
+                                    <p><strong>Section:</strong> <span id="report-section"></span></p>
+                                    <p><strong>School Year:</strong> <span id="report-school-year"></span></p>
+                                    <p><strong>Examination:</strong> <span id="report-exam-title"></span></p>
+                                    <p><strong>Total Items:</strong> <span id="report-num-items"></span></p>
+                                    <p><strong>Total Test Takers:</strong> <span id="report-num-students"></span></p>
+                                </div>
+                            </div>
+    
+                            <!-- Summary Cards -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-lg">
+                                    <div class="font-bold">Mastered Items</div>
+                                    <div id="mastered-items" class="text-lg font-semibold">-</div>
+                                </div>
+                                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg">
+                                    <div class="font-bold">Least Mastered Items</div>
+                                    <div id="least-mastered-items" class="text-lg font-semibold">-</div>
+                                </div>
+                                <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg">
+                                    <div class="font-bold">Not Mastered Items</div>
+                                    <div id="not-mastered-items" class="text-lg font-semibold">-</div>
+                                </div>
+                            </div>
+    
+                            <!-- Detailed Analysis Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full border-collapse">
+                                    <thead>
+                                        <tr>
+                                            <th class="table-cell table-cell-header">Item Number</th>
+                                            <th class="table-cell table-cell-header question-column" style="min-width: 250px;">Question</th>
+                                            <th class="table-cell table-cell-header">Correct Responses</th>
+                                            <th class="table-cell table-cell-header">MPS (%)</th>
+                                            <th class="table-cell table-cell-header">Mastery Level</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="analysis-table-body">
+                                        <!-- Results will be generated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- AI Summary Section -->
+                            <div id="ai-summary-container" class="mt-8">
+                                <h3 class="text-xl font-bold mb-4 border-b pb-2 text-purple-800">✨ AI Analysis and Recommendation</h3>
+                                <div id="ai-summary-content" class="text-gray-700 prose prose-blue max-w-none">
+                                    <p class="text-gray-500">Click "Generate AI Analysis" to get insights based on the test results and uploaded questions.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                 
+                 <div id="question-entry-container" class="mt-6 hidden no-print">
+                    <h3 class="text-lg font-bold text-gray-700 mb-3 border-t pt-4">Upload Questions for AI Analysis</h3>
+                    <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                       <label for="questions-file-input" class="block text-sm font-medium text-gray-700 mb-2">Upload a .pdf file with test questions</label>
+                       <p id="pdf-upload-status-text" class="text-xs text-gray-500 mb-2">
+                           Providing the test questions allows the AI to generate more specific remarks based on the item's content and skill being tested.
+                           <span id="pdf-status" class="ml-2 font-semibold"></span>
+                        </p>
+                       <input type="file" id="questions-file-input" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200">
+                    </div>
+               </div>
+
+                 <div class="mt-6 no-print">
+                    <div class="flex items-center justify-between mb-2">
+                        <label for="gemini-api-key" class="block text-sm font-medium text-gray-700">Gemini API Key</label>
+                        <button id="toggle-api-instructions-btn" class="text-sm text-blue-600 hover:underline focus:outline-none">How do I get one?</button>
+                    </div>
+                    <input type="password" id="gemini-api-key" placeholder="Enter your Gemini API Key here" class="p-2 border rounded-md focus:ring-2 focus:ring-purple-500 w-full">
+                    <p class="text-xs text-gray-500 mt-1">Your API key is used only in your browser and is not stored.</p>
+                    <div id="api-key-instructions" class="hidden mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                        <h4 class="font-bold mb-2">How to get your Gemini API Key</h4>
+                        <ol class="list-decimal list-inside space-y-2">
+                            <li>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 underline font-semibold">Google AI Studio</a>.</li>
+                            <li>Click "<strong>Create API key</strong>" in a new or existing project. Copy your generated API key.</li>
+                            <li class="mt-2"><strong>Important:</strong> You must enable the "<strong>Generative Language API</strong>" for the project.
+                                <ul class="list-disc list-inside ml-4 mt-1 text-xs">
+                                    <li>Find your project in the <a href="https://console.cloud.google.com/" target="_blank" class="text-blue-600 underline font-semibold">Google Cloud Console</a>, go to <strong>APIs & Services > Library</strong>, search for "Generative Language API", and click <strong>Enable</strong>. This step is required to avoid "404 Not Found" errors.</li>
+                                </ul>
+                            </li>
+                            <li>Paste the API key into the input field above.</li>
+                        </ol>
+                    </div>
+                 </div>
+
+                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 no-print">
+                    <button id="save-data-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-all duration-200 hover:-translate-y-0.5">💾 Save Data</button>
+                    <label for="load-data-input" class="w-full bg-orange-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-orange-600 transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer">📂 Load Data</label>
+                    <input type="file" id="load-data-input" class="hidden" accept=".json">
+
+                    <button id="generate-ai-summary-btn" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition-all duration-200 hover:-translate-y-0.5">✨ Generate AI Analysis</button>
+                    <button onclick="window.print()" class="w-full bg-gray-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-800 transition-all duration-200 hover:-translate-y-0.5">Print Report</button>
+                 </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set worker path for PDF.js
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
+            class ItemAnalysisApp {
+                constructor() {
+                    // DOM Elements
+                    this.elements = {
+                        generateBtn: document.getElementById('generate-grid-btn'),
+                    numItemsInput: document.getElementById('num-items'),
+                    numStudentsInput: document.getElementById('num-students'),
+                    dataEntrySection: document.getElementById('data-entry-section'),
+                    dataEntryGrid: document.getElementById('data-entry-grid'),
+                    analysisSection: document.getElementById('analysis-section'),
+                    analysisTableBody: document.getElementById('analysis-table-body'),
+                    questionEntryContainer: document.getElementById('question-entry-container'),                    
+                    csvFileInput: document.getElementById('csv-file-input'),                    
+                    geminiApiKeyInput: document.getElementById('gemini-api-key'),
+                    generateAiSummaryBtn: document.getElementById('generate-ai-summary-btn'),
+                    aiSummaryContent: document.getElementById('ai-summary-content'),
+                    saveDataBtn: document.getElementById('save-data-btn'),
+                    loadDataInput: document.getElementById('load-data-input'),
+                    uploadCsvBtn: document.getElementById('upload-csv-btn'),
+                    masteredItems: document.getElementById('mastered-items'),
+                    leastMasteredItems: document.getElementById('least-mastered-items'),
+                    notMasteredItems: document.getElementById('not-mastered-items'),
+                    
+                    toggleApiInstructionsBtn: document.getElementById('toggle-api-instructions-btn'),
+                    apiKeyInstructions: document.getElementById('api-key-instructions'),
+                    helpBtn: document.getElementById('help-btn'),
+                    helpModal: document.getElementById('help-modal'),
+                    closeHelpModalBtn: document.getElementById('close-help-modal-btn'),
+                    // Header Info Inputs
+                    district: document.getElementById('district'),
+                    school: document.getElementById('school'),
+                    schoolYear: document.getElementById('school-year'),
+                    gradeLevel: document.getElementById('grade-level'),
+                    section: document.getElementById('section'),
+                    subject: document.getElementById('subject'),
+                    examTitle: document.getElementById('exam-title'),
+
+                    // Report Header Spans
+                    reportDistrict: document.getElementById('report-district'),
+                    reportSchool: document.getElementById('report-school'),
+                    reportSchoolYear: document.getElementById('report-school-year'),
+                    reportGradeLevel: document.getElementById('report-grade-level'),
+                    reportSection: document.getElementById('report-section'),
+                    reportSubject: document.getElementById('report-subject'),
+                    reportExamTitle: document.getElementById('report-exam-title'),
+                    reportNumItems: document.getElementById('report-num-items'),
+                    reportNumStudents: document.getElementById('report-num-students'),
+                    };
+
+                    // State
+                    this.state = {
+                        numItems: 0,
+                        numStudents: 0,
+                        questions: [],
+                        analysisData: [], // Store analysis data for AI use
+                    };
+
+                    this.init();
+                }
+
+                init() {
+                    this.bindEvents();
+                    this.loadApiKeyFromStorage();
+                }
+
+                bindEvents() {
+                    document.querySelectorAll('[data-toggle-section]').forEach(header => {
+                        header.addEventListener('click', (e) => this.toggleSection(e.currentTarget));
+                    });
+                    this.elements.generateBtn.addEventListener('click', () => this.handleGenerateGrid());
+                    this.elements.dataEntryGrid.addEventListener('change', (e) => this.handleGridChange(e));
+                    // Note: Dynamic checkboxes have events bound in generateGrid
+                    // Note: questionsFileInput is added dynamically, so its event is bound in handleGenerateGrid
+                    this.elements.generateAiSummaryBtn.addEventListener('click', () => this.handleGenerateAiSummary());
+                    this.elements.saveDataBtn.addEventListener('click', () => this.handleSaveData());
+                    this.elements.uploadCsvBtn.addEventListener('click', () => this.handleCsvUpload());
+                    this.elements.loadDataInput.addEventListener('change', (e) => this.handleLoadData(e));
+                    this.elements.toggleApiInstructionsBtn.addEventListener('click', () => this.toggleApiInstructions());
+                    this.elements.helpBtn.addEventListener('click', () => this.openHelpModal());
+                    this.elements.closeHelpModalBtn.addEventListener('click', () => this.closeHelpModal());
+                    this.elements.helpModal.addEventListener('click', (e) => this.handleModalOverlayClick(e));
+                }
+
+                loadApiKeyFromStorage() {
+                    const savedKey = localStorage.getItem('geminiApiKey');
+                    if (savedKey) {
+                        this.elements.geminiApiKeyInput.value = savedKey;
+                    }
+                }
+
+                toggleSection(headerElement) {
+                    const contentId = headerElement.dataset.toggleSection;
+                    const contentElement = document.getElementById(contentId);
+                    const iconElement = headerElement.querySelector('.toggle-icon');
+
+                    contentElement.classList.toggle('hidden');
+                    const isHidden = contentElement.classList.contains('hidden');
+                    iconElement.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+                }
+
+                toggleApiInstructions() {
+                    this.elements.apiKeyInstructions.classList.toggle('hidden');
+                }
+
+                openHelpModal() {
+                    this.elements.helpModal.classList.remove('hidden');
+                    this.elements.helpModal.classList.add('flex');
+                }
+
+                closeHelpModal() {
+                    this.elements.helpModal.classList.add('hidden');
+                    this.elements.helpModal.classList.remove('flex');
+                }
+
+                handleModalOverlayClick(event) {
+                    if (event.target === this.elements.helpModal) this.closeHelpModal();
+                }
+
+                handleSaveData() {
+                    // 1. Gather all data into a state object
+                    const saveData = {
+                        examDetails: {},
+                        studentData: [],
+                        questions: this.state.questions,
+                        aiSummary: this.elements.aiSummaryContent.innerHTML
+                    };
+
+                    // Gather exam details
+                    const detailIds = ['district', 'school', 'schoolYear', 'gradeLevel', 'section', 'subject', 'examTitle', 'numItems', 'numStudents'];
+                    detailIds.forEach(id => {
+                        const element = document.getElementById(id.replace(/([A-Z])/g, '-$1').toLowerCase());
+                        if (element) {
+                            saveData.examDetails[id] = element.value;
+                        }
+                    });
+
+                    // Gather student names and answers
+                    for (let s = 1; s <= this.state.numStudents; s++) {
+                        const studentNameEl = document.getElementById(`student-name-${s}`);
+                        const studentName = studentNameEl ? studentNameEl.textContent : `Student ${s}`;
+                        const answers = [];
+                        for (let i = 1; i <= this.state.numItems; i++) {
+                            const checkbox = document.querySelector(`.student-answer-checkbox[data-student='${s}'][data-item='${i}']`);
+                            answers.push(checkbox && checkbox.checked ? 1 : 0);
+                        }
+                        saveData.studentData.push({ name: studentName, answers: answers });
+                    }
+
+                    // 2. Convert to JSON and trigger download
+                    const jsonString = JSON.stringify(saveData, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `item-analysis-data-${new Date().toISOString().slice(0,10)}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+
+                handleLoadData(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            this.applyLoadedData(data);
+                        } catch (error) {
+                            alert(`Error parsing JSON file: ${error.message}`);
+                        }
+                    };
+                    reader.readAsText(file);
+                    event.target.value = ''; // Reset input to allow loading same file again
+                }
+
+                applyLoadedData(data) {
+                    // 1. Populate exam details
+                    for (const [key, value] of Object.entries(data.examDetails)) {
+                        const element = document.getElementById(key.replace(/([A-Z])/g, '-$1').toLowerCase());
+                        if (element) element.value = value;
+                    }
+
+                    // 2. Generate grid and populate it
+                    this.handleGenerateGrid(); // This will create the structure
+
+                    // 3. Populate student names and answers
+                    data.studentData.forEach((student, studentIndex) => {
+                        document.getElementById(`student-name-${studentIndex + 1}`).textContent = student.name;
+                        student.answers.forEach((answer, itemIndex) => {
+                            const checkbox = document.querySelector(`.student-answer-checkbox[data-student='${studentIndex + 1}'][data-item='${itemIndex + 1}']`);
+                            if (checkbox) checkbox.checked = answer === 1;
+                        });
+                    });
+
+                    // 4. Load questions and AI summary
+                    this.state.questions = data.questions || [];
+                    this.elements.aiSummaryContent.innerHTML = data.aiSummary || '';
+
+                    // 5. Recalculate everything
+                    this.calculateAnalysis();
+                    alert('Data loaded successfully!');
+                }
+
+                handleGenerateGrid() {
+                    const items = parseInt(this.elements.numItemsInput.value, 10);
+                    const students = parseInt(this.elements.numStudentsInput.value, 10);
+
+                    if (isNaN(items) || isNaN(students) || items <= 0 || students <= 0) {
+                        alert('Please enter valid numbers for items and students.');
+                        return;
+                    }
+                    
+                    this.state.numItems = items;
+                    this.state.numStudents = students;
+                    
+                    this.generateGrid();
+                    this.elements.dataEntrySection.classList.remove('hidden');
+                    this.elements.questionEntryContainer.classList.remove('hidden');
+                    this.elements.analysisSection.classList.remove('hidden');
+
+                    // Bind event to the new questions file input
+                    document.getElementById('questions-file-input').addEventListener('change', (e) => this.handleQuestionsUpload(e));
+
+                    this.calculateAnalysis();
+                }
+
+                handleQuestionsUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const statusEl = document.getElementById('pdf-status');
+                    const statusTextEl = document.getElementById('pdf-upload-status-text');
+
+                    if (file.type !== 'application/pdf') {
+                        statusEl.textContent = 'Invalid file type. Please select a PDF.';
+                        statusEl.className = 'ml-2 font-semibold text-red-600';
+                        return;
+                    }
+
+                    statusEl.textContent = 'Processing PDF...';
+                    statusEl.className = 'ml-2 font-semibold text-blue-600';
+
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const arrayBuffer = e.target.result;
+                        try {
+                            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                            let allText = '';
+
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const textContent = await page.getTextContent();
+                                allText += textContent.items.map(item => item.str).join(' ') + '\n';
+                            }
+
+                            // Assuming questions are separated by numbers like "1.", "2.", etc.
+                            // This regex splits the text by numbers followed by a period.
+                            const questions = allText.split(/\s*(?=\d+\.\s)/).map(q => q.trim()).filter(q => q);
+
+                            // Create an array for questions based on the total number of items.
+                            const finalQuestions = new Array(this.state.numItems).fill('');
+
+                            // Populate the array with questions found in the PDF.
+                            for (let i = 0; i < this.state.numItems; i++) {
+                                if (questions[i]) {
+                                    finalQuestions[i] = questions[i];
+                                }
+                            }
+                            this.state.questions = finalQuestions;
+                            statusEl.textContent = `Success! ${Math.min(questions.length, this.state.numItems)} questions loaded from ${file.name}.`;
+                            statusEl.className = 'ml-2 font-semibold text-green-600';
+                        } catch (error) {
+                            console.error('Error parsing PDF:', error);
+                            statusEl.textContent = 'Error: Could not read the PDF file.';
+                            statusEl.className = 'ml-2 font-semibold text-red-600';
+                            this.state.questions = [];
+                        } finally {
+                            this.calculateAnalysis();
+                        }
+                    };
+                    reader.onerror = () => {
+                        console.error('FileReader error.');
+                        statusEl.textContent = 'Error: Could not read the file.';
+                        statusEl.className = 'ml-2 font-semibold text-red-600';
+                        this.state.questions = [];
+                        this.calculateAnalysis();
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+                // Generate the data entry table
+                generateGrid() {
+                    const { numItems, numStudents } = this.state;
+                    const grid = this.elements.dataEntryGrid;
+                    grid.innerHTML = '';
+
+                    // Header Row
+                    const thead = document.createElement('thead');
+                    let headerRow = `<tr><th class="table-cell table-cell-header">
+                        <input type="checkbox" id="toggle-all-checkbox" class="student-answer-checkbox" title="Toggle All Checkboxes">
+                        <span class="ml-2">Student Name</span>
+                    </th>`;
+                    for (let i = 1; i <= numItems; i++) {
+                        headerRow += `<th class="table-cell table-cell-header">${i}</th>`;
+                    }
+                    headerRow += '<th class="table-cell table-cell-header">Total</th></tr>';
+                    thead.innerHTML = headerRow;
+                    grid.appendChild(thead);
+
+                    const tbody = document.createElement('tbody');
+                    // Student Rows
+                    for (let s = 1; s <= numStudents; s++) {
+                        let studentRow = `<tr id="student-row-${s}">
+                            <td class="table-cell table-cell-header student-name-cell flex items-center">
+                                <input type="checkbox" class="student-toggle-checkbox student-answer-checkbox" data-student-row="${s}" title="Toggle all items for this student">
+                                <span id="student-name-${s}" contenteditable="true" class="ml-2 p-1 rounded-md hover:bg-gray-200 focus:bg-gray-200 focus:outline-none w-full text-left">Student ${s}</span>
+                            </td>`;
+                        for (let i = 1; i <= numItems; i++) {
+                            studentRow += `<td class="table-cell"><input type="checkbox" class="student-answer-checkbox" data-student="${s}" data-item="${i}"></td>`;
+                        }
+                        studentRow += `<td class="table-cell" id="student-total-${s}">0</td></tr>`;
+                        tbody.innerHTML += studentRow;
+                    }
+                    grid.appendChild(tbody);
+
+                    // Bind events to newly created elements
+                    document.getElementById('toggle-all-checkbox').addEventListener('change', (e) => this.toggleAllCheckboxes(e.target.checked));
+                    document.querySelectorAll('.student-toggle-checkbox').forEach(toggle => {
+                        toggle.addEventListener('change', (e) => this.toggleStudentRow(e.target));
+                    });
+                }
+
+                handleGridChange(event) {
+                    // We only want to recalculate if a student answer checkbox was changed
+                    if (event.target.classList.contains('student-answer-checkbox')) {
+                        this.calculateAnalysis();
+                    }
+                }
+
+                toggleStudentRow(toggleCheckbox) {
+                    const studentRowId = toggleCheckbox.dataset.studentRow;
+                    const studentRow = document.getElementById(`student-row-${studentRowId}`);
+                    if (studentRow) {
+                        const itemCheckboxes = studentRow.querySelectorAll(`input[data-student='${studentRowId}']`);
+                        itemCheckboxes.forEach(checkbox => {
+                            checkbox.checked = toggleCheckbox.checked;
+                        });
+                    }
+                }
+
+                toggleAllCheckboxes(isChecked) {
+                    const checkboxes = this.elements.dataEntryGrid.querySelectorAll('.student-answer-checkbox');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = isChecked;
+                    });
+                    // The grid change handler will trigger calculateAnalysis
+                }
+
+                handleCsvUpload() {
+                    const file = this.elements.csvFileInput.files[0];
+                    if (!file) {
+                        alert('Please select a CSV file to upload.');
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const csvContent = event.target.result;
+                            this.parseAndApplyCsv(csvContent);
+                        } catch (error) {
+                            alert(`An error occurred while processing the file: ${error.message}`);
+                        }
+                    };
+                    reader.onerror = () => {
+                        alert('Error reading the file.');
+                    };
+                    reader.readAsText(file);
+                }
+
+                parseAndApplyCsv(csvContent) {
+                    const lines = csvContent.trim().split(/\r?\n/);
+                    if (lines.length < 2) {
+                        alert('CSV file must contain a header row and at least one data row.');
+                        return;
+                    }
+                    
+                    const dataRows = lines.slice(1); // All lines except the first (header)
+                    
+                    if (dataRows.length !== this.state.numStudents) {
+                        alert(`CSV file has ${dataRows.length} student rows, but the number of test takers is set to ${this.state.numStudents}. Please ensure they match.`);
+                        return;
+                    }
+
+                    dataRows.forEach((row, studentIndex) => {
+                        const values = row.split(',');
+                        const studentName = values[0].trim();
+                        const scores = values.slice(1);
+
+                        if (scores.length !== this.state.numItems) {
+                            throw new Error(`Student row ${studentIndex + 1} ('${studentName}') has ${scores.length} item scores, but the number of items is set to ${this.state.numItems}.`);
+                        }
+
+                        scores.forEach((value, itemIndex) => {
+                            const checkbox = document.querySelector(`.student-answer-checkbox[data-student='${studentIndex + 1}'][data-item='${itemIndex + 1}']`);
+                            if (checkbox) {
+                                checkbox.checked = value.trim() === '1';
+                            }
+                        });
+                    });
+
+                    // Update student names in the grid
+                    dataRows.forEach((row, studentIndex) => {
+                        const studentName = row.split(',')[0].trim();
+                        document.getElementById(`student-name-${studentIndex + 1}`).textContent = studentName;
+                    });
+
+                    this.calculateAnalysis();
+                    alert('CSV data has been successfully applied to the grid.');
+                }
+
+                // Main calculation logic
+                calculateAnalysis() {
+                    this.updateReportHeader();
+                    this.updateAllToggleStates();
+                    const { numItems, numStudents } = this.state;
+                    if (numItems === 0 || numStudents === 0) return;
+
+                    const studentScores = this.calculateStudentScores();
+                    const questions = this.state.questions;
+                    
+                    const itemAnalysis = [];
+                    for (let i = 1; i <= numItems; i++) {
+                        let correctCount = 0;
+                        studentScores.forEach(student => {
+                            if (student.scores[i-1] === 1) {
+                                correctCount++;
+                            }
+                        });
+                        const mps = (correctCount / numStudents) * 100;
+                        itemAnalysis.push({
+                            item: i,
+                            correctCount: correctCount,
+                            question: questions[i-1] || '', // Use question from state or empty string
+                            mps: mps.toFixed(2),
+                            interpretation: this.getInterpretation(mps)
+                        });
+                    }
+                    
+                    this.state.analysisData = itemAnalysis; // Save for AI
+                    this.renderAnalysis(itemAnalysis);
+                }
+
+                async handleGenerateAiSummary() {
+                    const apiKey = this.elements.geminiApiKeyInput.value.trim();
+
+                    const btn = this.elements.generateAiSummaryBtn;
+
+                    if (!apiKey) {
+                        alert('Please enter your Gemini API key to generate the analysis.');
+                        this.elements.geminiApiKeyInput.focus();
+                        return;
+                    }
+
+                    // Save the key to local storage for future use
+                    localStorage.setItem('geminiApiKey', apiKey);
+
+                    btn.disabled = true;
+                    btn.textContent = '🤖 Generating...';
+                    this.elements.aiSummaryContent.innerHTML = '<p>Thinking...</p>';
+
+                    try {
+                        const prompt = this.createAiSummaryPrompt();
+                        const summary = await this.fetchGeminiResponse(prompt, apiKey);                        
+                    let htmlSummary = summary;
+
+                    // 1. Convert specific section titles to <h3> for better visual hierarchy
+                    //    Apply Tailwind classes for styling.
+                    htmlSummary = htmlSummary.replace(/\*\*(Analysis)\*\*/g, '<h3 class="text-lg font-bold mt-4 mb-2 text-purple-700">$1</h3>');
+                    htmlSummary = htmlSummary.replace(/\*\*(Recommendations)\*\*/g, '<h3 class="text-lg font-bold mt-4 mb-2 text-purple-700">$1</h3>');
+                    htmlSummary = htmlSummary.replace(/\*\*(Overall Performance)\*\*/g, '<h3 class="text-lg font-bold mt-4 mb-2 text-purple-700">$1</h3>');
+                    htmlSummary = htmlSummary.replace(/\*\*(Test Questions)\*\*/g, '<h3 class="text-lg font-bold mt-4 mb-2 text-purple-700">$1</h3>');
+
+                    // 2. Convert other bold text (e.g., **important word**)
+                    htmlSummary = htmlSummary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+                    // 3. Convert numbered lists (e.g., "1. Item") to <ol><li>
+                    // This regex captures a block of numbered list items and processes them.
+                    htmlSummary = htmlSummary.replace(/(\n|^)((\d+\.\s[^\n]+)(\n\d+\.\s[^\n]+)*)/g, function(match, p1, p2) {
+                        const listItems = p2.split('\n').map(item => `<li>${item.replace(/^\d+\.\s/, '')}</li>`).join('');
+                        return `${p1}<ol>${listItems}</ol>`;
+                    });
+
+                    // 4. Convert bullet lists (e.g., "- Item" or "* Item") to <ul><li>
+                    // This regex captures a block of bullet list items and processes them.
+                    htmlSummary = htmlSummary.replace(/(\n|^)(([\*\-]\s[^\n]+)(\n[\*\-]\s[^\n]+)*)/g, function(match, p1, p2) {
+                        const listItems = p2.split('\n').map(item => `<li>${item.replace(/^[\*\-]\s/, '')}</li>`).join('');
+                        return `${p1}<ul>${listItems}</ul>`;
+                    });
+
+                    // 5. Convert multiple newlines to paragraphs, and single newlines to <br>
+                    // This should be done after list processing.
+                    htmlSummary = htmlSummary.split(/\n\n+/).map(p => {
+                        // If a paragraph already contains block-level elements (like <h>, <ol>, <ul>), don't wrap it in <p>
+                        if (p.match(/<(h|ol|ul|li)>/)) {
+                            return p.replace(/\n/g, '<br>'); // Just replace remaining newlines with <br>
+                        } else {
+                            return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+                        }
+                    }).join('');
+
+                    // 6. Remove any stray '#' characters (as requested)
+                    htmlSummary = htmlSummary.replace(/#/g, '');
+
+                    // Clean up any empty <p> tags that might result
+                    htmlSummary = htmlSummary.replace(/<p><\/p>/g, '');
+
+                    // Assign the processed HTML to the content area
+                    this.elements.aiSummaryContent.innerHTML = htmlSummary;
+                    } catch (error) {
+                        console.error('Error generating AI summary:', error);
+                        alert(`An error occurred: ${error.message}`);
+                        this.elements.aiSummaryContent.innerHTML = `<p class="text-red-500">Failed to generate analysis. ${error.message}</p>`;
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = '✨ Generate AI Analysis';
+                    }
+                }
+
+                createAiSummaryPrompt() {
+                    const mastered = this.state.analysisData.filter(i => i.interpretation.text === 'Mastered').map(i => i.item);
+                    const leastMastered = this.state.analysisData.filter(i => i.interpretation.text === 'Least Mastered').map(i => i.item);
+                    const notMastered = this.state.analysisData.filter(i => i.interpretation.text === 'Not Mastered').map(i => i.item);
+
+                    let prompt = `As an expert instructional analyst for the Department of Education, analyze the following test results and provide a holistic summary and a set of actionable recommendations for the teacher.
+
+**Overall Performance:**
+- Mastered Items (>=80%): ${mastered.join(', ') || 'None'}
+- Least Mastered Items (50-79%): ${leastMastered.join(', ') || 'None'}
+- Not Mastered Items (<50%): ${notMastered.join(', ') || 'None'}
+
+**Test Questions:**
+`;
+                    const questionsAvailable = this.state.questions.some(q => q.trim() !== '');
+                    if (questionsAvailable) {
+                        this.state.analysisData.forEach(item => {
+                            if (item.question) {
+                                prompt += `- Item ${item.item}: ${item.question}\n`;
+                            }
+                        });
+                    } else {
+                        prompt += "The specific test questions were not provided.\n";
+                    }
+
+                    prompt += `
+**Your Task:**
+1.  **Analysis:** Provide a direct, concise, and detailed explanation of patterns or common themes among the 'Least Mastered' and 'Not Mastered' items. Based on the provided questions, clearly identify the specific topics or skills where students are struggling.
+2.  **Recommendations:** Provide a direct, concise, and detailed list of clear, actionable recommendations for the teacher to address these identified learning gaps.
+
+Structure your response with distinct "**Analysis**" and "**Recommendations**" headings. Ensure the language is professional and directly addresses the teacher.`;
+                    return prompt;
+                }
+
+                async fetchGeminiResponse(prompt, apiKey) {
+                    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new Error(`API request failed: 404 Not Found. This usually means the 'Generative Language API' is not enabled for your Google Cloud project, or the API key is invalid. Please verify your project settings in the Google Cloud Console.`);
+                        }
+                        throw new Error(`API request failed with status ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    console.log('Gemini API Raw Response:', data); // Log the full response for debugging
+
+                    if (data.promptFeedback && data.promptFeedback.safetyRatings && data.promptFeedback.safetyRatings.some(rating => rating.blocked)) {
+                        throw new Error('Gemini API blocked response due to safety concerns. Please refine your prompt.');
+                    }
+                    if (data.promptFeedback && data.promptFeedback.blockReason) {
+                        throw new Error(`Gemini API blocked response: ${data.promptFeedback.blockReason}.`);
+                    }
+
+                    if (!data.candidates || !data.candidates[0].content || !data.candidates[0].content.parts) {
+                        // If it's not a safety block, but still malformed, provide the generic error.
+                        throw new Error('Invalid response structure from Gemini API. Check console for details.');
+                    }
+                    return data.candidates[0].content.parts[0].text.trim();
+                }
+
+                calculateStudentScores() {
+                    const studentData = [];
+                    for (let s = 1; s <= this.state.numStudents; s++) {
+                        let totalScore = 0;
+                        const scores = [];
+                        const answerCheckboxes = document.querySelectorAll(`.student-answer-checkbox[data-student='${s}']`);
+                        
+                        answerCheckboxes.forEach(checkbox => {
+                            if (checkbox.checked) {
+                                scores.push(1);
+                                totalScore++;
+                            } else {
+                                scores.push(0);
+                            }
+                        });
+
+                        document.getElementById(`student-total-${s}`).textContent = totalScore;
+                        studentData.push({ student: s, scores: scores, total: totalScore });
+                    }
+                    return studentData;
+                }
+
+                updateAllToggleStates() {
+                    // Update the main "toggle all" checkbox
+                    const toggleAll = document.getElementById('toggle-all-checkbox');
+                    if (!toggleAll) return;
+
+                    const allCheckboxes = document.querySelectorAll('.student-answer-checkbox:not(#toggle-all-checkbox)');
+                    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                    toggleAll.checked = allCheckboxes.length > 0 && allChecked;
+
+                    // Update each student row's toggle checkbox
+                    for (let s = 1; s <= this.state.numStudents; s++) {
+                        const studentToggle = document.querySelector(`.student-toggle-checkbox[data-student-row='${s}']`);
+                        const studentItemCheckboxes = document.querySelectorAll(`.student-answer-checkbox[data-student='${s}']`);
+                        if (studentToggle && studentItemCheckboxes.length > 0) {
+                            const allStudentItemsChecked = Array.from(studentItemCheckboxes).every(cb => cb.checked);
+                            studentToggle.checked = allStudentItemsChecked;
+                        }
+                    }
+                }
+
+                getInterpretation(mps) {
+                    if (mps >= 80) return { text: 'Mastered', class: 'interpretation-level-mastered' };
+                    if (mps >= 50) return { text: 'Least Mastered', class: 'interpretation-level-least' };
+                    return { text: 'Not Mastered', class: 'interpretation-level-not' };
+                }
+
+                renderAnalysis(analysisData) {
+                    const tbody = this.elements.analysisTableBody;
+                    tbody.innerHTML = '';
+                    
+                    const mastered = [];
+                    const leastMastered = [];
+                    const notMastered = [];
+
+                    analysisData.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="table-cell">${item.item}</td>
+                            <td class="table-cell text-left p-2 question-column">${item.question}</td>
+                            <td class="table-cell">${item.correctCount}</td>
+                            <td class="table-cell">${item.mps}%</td>
+                            <td class="table-cell ${item.interpretation.class}">${item.interpretation.text}</td>
+                        `;
+                        tbody.appendChild(row);
+
+                        if (item.interpretation.text === 'Mastered') mastered.push(item.item);
+                        else if (item.interpretation.text === 'Least Mastered') leastMastered.push(item.item);
+                        else notMastered.push(item.item);
+                    });
+                    
+                    // Hide question column if no questions are loaded
+                    document.querySelectorAll('.question-column').forEach(el => {
+                        el.style.display = 'none';
+                    });
+
+                    this.elements.masteredItems.textContent = mastered.join(', ') || 'None';
+                    this.elements.leastMasteredItems.textContent = leastMastered.join(', ') || 'None';
+                    this.elements.notMasteredItems.textContent = notMastered.join(', ') || 'None';
+                }
+                
+                updateReportHeader() {
+                    this.elements.reportDistrict.textContent = this.elements.district.value;
+                    this.elements.reportSchool.textContent = this.elements.school.value;
+                    this.elements.reportSchoolYear.textContent = this.elements.schoolYear.value;
+                    this.elements.reportGradeLevel.textContent = this.elements.gradeLevel.value;
+                    this.elements.reportSection.textContent = this.elements.section.value;
+                    this.elements.reportSubject.textContent = this.elements.subject.value;
+                    this.elements.reportExamTitle.textContent = this.elements.examTitle.value;
+                    this.elements.reportNumItems.textContent = this.state.numItems;
+                    this.elements.reportNumStudents.textContent = this.state.numStudents;
+                }
+            }
+
+            new ItemAnalysisApp();
+
+            // Initialize 3D Animated Background
+            VANTA.NET({
+                el: "#vanta-background",
+                mouseControls: false,
+                touchControls: false,
+                gyroControls: false,
+                minHeight: 200.00,
+                minWidth: 200.00,
+                scale: 1.00,
+                scaleMobile: 1.00,
+                color: 0x3b82f6, // Tailwind's blue-500
+                backgroundColor: 0xf9fafb, // Tailwind's gray-50
+                points: 12.00,
+                maxDistance: 25.00,
+                spacing: 18.00
+            });
+        });
+    </script>
+</body>
+</html>
